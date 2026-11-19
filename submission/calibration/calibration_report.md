@@ -34,7 +34,7 @@ POSSIBLE_WRONG_CLASS         6    5    4    1       0.56    0.83   0.67
 | 20 | 1.00 / 0.33 / 0.50 | 1.00 / 0.50 / 0.67 |
 
 ## Sweep `second_opinion.conf`
-
+ 
 | giá trị | POSSIBLE_WRONG_CLASS (P / R / F1) | POSSIBLE_MISSING (P / R / F1) | POSSIBLE_LOOSE_BOX (P / R / F1) | POSSIBLE_FALSE_POS (P / R / F1) |
 |---|---|---|---|---|
 | 0.1 | 0.56 / 0.83 / 0.67 | 0.40 / 1.00 / 0.57 | 0.38 / 0.60 / 0.46 | 0.31 / 1.00 / 0.48 |
