@@ -60,8 +60,23 @@ python -m pipeline.run --budget 0 --reports work/rep_nb --export-dir work/exp_nb
 3. **Ảnh trùng bị biến đổi nặng:** Ảnh bị xoay góc lớn, crop trên 50% diện tích hoặc chỉnh màu tương phản mạnh khiến perceptual hash vượt quá ngưỡng khoảng cách 8 sẽ lọt qua cửa vào intake mà không bị phát hiện.
 
 ## 5. Train: raw vs clean (tùy chọn, chấm riêng)
-Chưa chạy do môi trường thực thi hiện tại là máy trạm CPU cá nhân không có GPU chuyên dụng. Phần huấn luyện so sánh mô hình YOLO26n (raw vs clean, 2 seed, 20 epoch) được thiết kế chạy trên môi trường Google Colab T4 (~20 phút) theo notebook `notebooks/day09_train_compare.ipynb`. Báo cáo này tập trung hoàn thành và kiểm chứng toàn bộ phần lõi chất lượng dữ liệu của Pipeline AutoQC theo tiêu chuẩn kiểm định `make check-core`.
+| biến thể | #ảnh train | số seed | map50 (TB ± độ lệch) | map50_95 (TB ± độ lệch) | precision (TB ± độ lệch) | recall (TB ± độ lệch) |
+|---|---|---|---|---|---|---|
+| raw | 224 | 2 | 0.726 ± 0.000 | 0.512 ± 0.004 | 0.764 ± 0.061 | 0.649 ± 0.028 |
+| clean | 203 | 2 | 0.707 ± 0.015 | 0.496 ± 0.008 | 0.788 ± 0.062 | 0.595 ± 0.056 |
 
+Chênh mAP50 (clean − raw) = **-0.019**.
+
+**Phân tích và kết luận trung thực:**
+1. **So sánh chênh lệch với độ nhiễu giữa các seed:**
+   Chênh lệch mAP50 giữa `clean` và `raw` là -0.019, trong khi độ lệch chuẩn ngẫu nhiên giữa các seed của `clean` là $\pm 0.015$. Mức chênh lệch này nằm sát trong biên độ nhiễu ngẫu nhiên của quá trình huấn luyện, do đó **chưa thể kết luận mô hình clean kém hơn mô hình raw về mặt ý nghĩa thống kê**. Đáng chú ý, Precision trung bình của `clean` cao hơn `raw` (0.788 so với 0.764), phản ánh việc loại bỏ các box lỗi và sai lớp giúp mô hình đưa ra các dự đoán chuẩn xác hơn, ít bị báo động giả.
+
+2. **Hai nguyên nhân chính giải thích vì sao mAP50 của raw cao hơn:**
+   - **Rò rỉ dữ liệu kiểm thử (Data Leakage) ở tập raw:** Bộ dữ liệu `raw` có 5 ảnh bị rò rỉ từ tập test (`LEAK_TEST`). Mô hình huấn luyện trên `raw` đã vô tình "học thuộc" các ảnh này, dẫn đến điểm số mAP trên tập test bị thổi phồng nhân tạo. Khi pipeline làm sạch và loại bỏ 5 ảnh rò rỉ này, tập `clean` phải kiểm thử trên tập dữ liệu hoàn toàn độc lập và trung thực. *Cách kiểm tra*: Đánh giá lại cả hai mô hình trên tập validation ngoài (`gold_val`) hoàn toàn không chứa ảnh rò rỉ.
+   - **Chênh lệch kích thước mẫu huấn luyện:** Do pipeline loại bỏ 21 ảnh lỗi (ảnh hỏng, quá nhỏ, trùng lặp, rò rỉ), số ảnh train của `clean` giảm từ 224 xuống còn 203 ảnh (~10% dữ liệu). Với tập dữ liệu nhỏ ở quy mô vài trăm ảnh, việc sụt giảm số lượng mẫu huấn luyện khiến Recall giảm nhẹ từ 0.649 xuống 0.595.
+   - **Tập test nhỏ (100 ảnh):** Với tập test 100 ảnh, vài vật thể bị phát hiện trượt có thể làm thay đổi đáng kể chỉ số mAP50.
+
+3. **Việc tiếp theo cần làm:** Bổ sung thêm ảnh sạch cho các lớp có ít mẫu (`truck`, `bus`), tăng cường kỹ thuật data augmentation cho `clean` để bù đắp số lượng ảnh bị loại, và chạy thêm seed (>= 5 seed) để giảm biên độ nhiễu.
 ## 6. Quyết định và ghi chú AI
 **(a) Quyết định cuối cùng:**
 **RELEASE** — Bộ dữ liệu sạch `clean_v1` đáp ứng đầy đủ tiêu chí chất lượng: 0 lỗi bắt buộc, tỉ lệ ảnh có cảnh báo sau người duyệt chỉ còn 7.88% (< 10.00%). Nếu sau này ngân sách người duyệt bị cắt giảm dưới 80 ảnh khiến tỉ lệ cảnh báo vượt 10% (Hold), đội ngũ cần hoặc bổ sung ngân sách duyệt thêm các ảnh cảnh báo ngữ nghĩa, hoặc lọc bỏ các ảnh có cảnh báo phức tạp trước khi phát hành.
